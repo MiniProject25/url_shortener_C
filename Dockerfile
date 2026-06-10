@@ -1,42 +1,26 @@
-# ==============================================================================
-# Stage 1: Build the C application
-# ==============================================================================
-FROM alpine:latest AS builder
+FROM alpine:latest
 
-# Install compilers and database dependencies needed for compilation
+# Install compilers and database dependencies (both dev headers and runtime libraries)
 RUN apk add --no-cache \
     gcc \
     musl-dev \
-    sqlite-dev
-
-# Set the build working directory
-WORKDIR /build
-
-# Copy the source files
-COPY . .
-
-# Compile the application with optimizations (-O2) and link SQLite (-lsqlite3)
-RUN gcc -O2 *.c -lsqlite3 -o http_server
-
-# ==============================================================================
-# Stage 2: Create a minimal deployment image
-# ==============================================================================
-FROM alpine:latest
-
-# Install only the runtime dependency for SQLite
-RUN apk add --no-cache sqlite-libs
+    sqlite-dev \
+    sqlite-libs
 
 # Set application directory
 WORKDIR /app
 
-# Make /app directory writable for any user (important for SQLite file creation under non-root UIDs)
+# Make the directory writable for SQLite file creation
 RUN chmod 777 /app
 
-# Copy the compiled executable from the build stage
-COPY --from=builder /build/http_server /app/http_server
+# Copy all source files into the container
+COPY . .
 
-# Expose the port the server listens on
+# Compile the URL shortener server directly in the runtime directory
+RUN gcc -O2 *.c -lsqlite3 -o /app/http_server
+
+# Expose port 8000
 EXPOSE 8000
 
-# Start the application
-CMD ["./http_server"]
+# Start the application using absolute path
+CMD ["/app/http_server"]
