@@ -34,17 +34,23 @@ static int print_callback(void* data, int argc, char** argv, char** azColName) {
 static void ev_handler(struct mg_connection *c, int ev, void* ev_data) {
   // HTTP Event occurs
   if (ev == MG_EV_HTTP_MSG) {
-    // parse the body
     struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+    printf("HTTP Request: %.*s %.*s\n", (int)hm->method.len, hm->method.buf, (int)hm->uri.len, hm->uri.buf);
+
+    /* GET / ---> Health Check */
+    if (mg_match(hm->uri, mg_str("/"), NULL)) {
+      mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\" : \"alive\"}\n");
+      return;
+    }
 
     /* /api/hello ---> says hello   */
-    if (mg_match(hm->uri, mg_str("/api/hello"), NULL)) {
-      // reply
+    else if (mg_match(hm->uri, mg_str("/api/hello"), NULL)) {
       mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"message\" : \"Hello!\"}\n");
+      return;
     }
 
     /* POST /api/short_url ---> generate a shortened URL */
-    if (mg_match(hm->uri, mg_str("/api/short_url"), NULL) && mg_match(hm->method, mg_str("POST"), NULL)) {
+    else if (mg_match(hm->uri, mg_str("/api/short_url"), NULL) && mg_match(hm->method, mg_str("POST"), NULL)) {
       // send the main URL in the post request
       char* url = mg_json_get_str(mg_str(hm->body.buf), "$.url");
 
@@ -88,10 +94,11 @@ static void ev_handler(struct mg_connection *c, int ev, void* ev_data) {
       mg_free(url);
 
       mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"status\" : \"OK\"}");
+      return;
     }
 
     /* GET /api/get_urls --> get all the shortened URLs */
-    if (mg_match(hm->uri, mg_str("/api/get_urls"), NULL)) {
+    else if (mg_match(hm->uri, mg_str("/api/get_urls"), NULL)) {
       const char* sql = "SELECT SHORT_URL, URL FROM hash_table;";
       int exit = 0;
 
@@ -100,17 +107,15 @@ static void ev_handler(struct mg_connection *c, int ev, void* ev_data) {
 
       if (exit != SQLITE_OK) {
         perror("Failed to retrieve the URLs\n");
-        free(errmsg);
+        sqlite3_free(errmsg); // Fix SQLite free function
       }
 
       mg_http_reply(c, 200, "Content-Type: application/json\r\n", "{\"message\" : \"Retrieved rows\"}");
+      return;
     }
 
     /* GET /{short_code}  --> use the shortened URL and get redirected to the appropriate destination  */
-    if (mg_match(hm->method,mg_str("GET"), NULL)) {
-      //char* min_url = mg_json_get_str(mg_str(hm->body.buf), "$.url");
-      //printf("minurl: %s\n", min_url);
-
+    else if (mg_match(hm->method, mg_str("GET"), NULL)) {
       char short_code[64];
 
       snprintf(
@@ -127,13 +132,14 @@ static void ev_handler(struct mg_connection *c, int ev, void* ev_data) {
 
       // prepare the statement
       if (sqlite3_prepare_v2(DB, sql, -1, &stmt, NULL) != SQLITE_OK) {
-        printf("Failed to prepare the statement: ", sqlite3_errmsg(DB));
+        printf("Failed to prepare the statement: %s\n", sqlite3_errmsg(DB));
         return;
       }
 
       // bind the parameter
       if (sqlite3_bind_text(stmt, 1, short_code, -1, SQLITE_STATIC) != SQLITE_OK) {
-        printf("Failed to bind the parameter: ", sqlite3_errmsg(DB));
+        printf("Failed to bind the parameter: %s\n", sqlite3_errmsg(DB));
+        sqlite3_finalize(stmt); // Fix resource leak
         return;
       }
 
@@ -142,7 +148,6 @@ static void ev_handler(struct mg_connection *c, int ev, void* ev_data) {
         const char* originalUrl = (const char*)sqlite3_column_text(stmt, 0);
         
         printf("Original URL: %s\n", originalUrl);
-        //mg_http_reply(c, 302, "Location: %s\r\n", "", originalUrl);
         mg_printf(c,
           "HTTP/1.1 302 Found\r\n"
           "Location: %s\r\n"
@@ -150,10 +155,13 @@ static void ev_handler(struct mg_connection *c, int ev, void* ev_data) {
           "\r\n",
           originalUrl
         );
+        sqlite3_finalize(stmt); // Fix resource leak
         return;
       }
       
+      sqlite3_finalize(stmt); // Fix resource leak
       mg_http_reply(c, 404, "", "%s", "URL Not found");
+      return;
     }
   }
 }
