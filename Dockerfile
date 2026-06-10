@@ -29,6 +29,9 @@ RUN apk add --no-cache sqlite-libs
 # Set application directory
 WORKDIR /app
 
+# Make /app directory writable for any user (important for SQLite file creation under non-root UIDs)
+RUN chmod 777 /app
+
 # Copy the compiled executable from the build stage
 COPY --from=builder /build/http_server /app/http_server
 

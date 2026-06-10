@@ -185,6 +185,10 @@ void initDB(sqlite3* DB) {
 }
 
 int main() {
+  // Disable buffering for standard output and error so logs appear immediately in Docker
+  setvbuf(stdout, NULL, _IONBF, 0);
+  setvbuf(stderr, NULL, _IONBF, 0);
+
   // event manager
   struct mg_mgr mgr; 
 
