@@ -19,8 +19,11 @@ COPY . .
 # Compile the URL shortener server directly in the runtime directory
 RUN gcc -O2 *.c -lsqlite3 -o /app/http_server
 
+# Make the entrypoint script executable
+RUN chmod +x /app/entrypoint.sh
+
 # Expose port 8000
 EXPOSE 8000
 
-# Start the application using absolute path
-CMD ["/app/http_server"]
+# Start using the diagnostic entrypoint script
+CMD ["/app/entrypoint.sh"]
