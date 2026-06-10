@@ -208,8 +208,8 @@ int main() {
 
   /*******************************************/
 
-  // listen on localhost:8000
-  mg_http_listen(&mgr, "http://localhost:8000", ev_handler, NULL);
+  // listen on 0.0.0.0:8000 for Docker/external accessibility
+  mg_http_listen(&mgr, "http://0.0.0.0:8000", ev_handler, NULL);
 
   // continuously poll for any activity
   while(1) {

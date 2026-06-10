@@ -5,7 +5,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#ifdef _WIN32
 #include <windows.h>
+#endif
 #include "hash_table.h"
 #include "md5.h"
 #include "base64.h"
